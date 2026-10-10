@@ -1,0 +1,35 @@
+FR_ID,User_Story_ID,Acceptance_Criteria_ID,Component_API_Route,Future_Test_Name,Status
+FR-01,US-01,AC-01-01,POST /requests,test_create_defaults,PLANNED_LR3
+FR-01,US-01,AC-01-02,POST /requests,test_create_title_boundaries,PLANNED_LR3
+FR-01,US-01,AC-01-03,POST /requests,test_create_invalid_fields,PLANNED_LR3
+FR-02,US-02,AC-02-01,GET /requests,test_filters_and,PLANNED_LR3
+FR-02,US-02,AC-02-02,GET /requests,test_filter_empty,PLANNED_LR3
+FR-02,US-02,AC-02-03,GET /requests/{id},test_read_missing,PLANNED_LR3
+FR-02,US-02,AC-02-04,GET /requests,test_invalid_filter,PLANNED_LR3
+FR-02,US-02,AC-02-05,GET /requests,test_request_order,PLANNED_LR3
+FR-03,US-03,AC-03-01,PATCH /requests/{id},test_patch_merge,PLANNED_LR3
+FR-03,US-03,AC-03-02,PATCH /requests/{id},test_patch_null_nonnullable,PLANNED_LR3
+FR-03,US-03,AC-03-03,PATCH /requests/{id},test_patch_empty_unknown,PLANNED_LR3
+FR-03,US-03,AC-03-04,PATCH /requests/{id},test_patch_atomic,PLANNED_LR3
+FR-03,US-03,AC-03-05,PATCH /requests/{id},test_patch_closed,PLANNED_LR3
+FR-03,US-03,AC-03-06,PATCH /requests/{id},test_progress_completeness_invariant,PLANNED_LR3
+FR-04,US-04,AC-04-01,PATCH /requests/{id}; PATCH /requests/{id}/status,test_confirm_start,PLANNED_LR3
+FR-04,US-04,AC-04-02,PATCH /requests/{id}/status,test_start_incomplete,PLANNED_LR3
+FR-04,US-04,AC-04-03,PATCH /requests/{id}/status,test_closed_cannot_reopen,PLANNED_LR3
+FR-04,US-04,AC-04-04,PATCH /requests/{id}/status,test_progress_noop_backward,PLANNED_LR3
+FR-04,US-04,AC-04-05,PATCH /requests/{id},test_confirmation_pair,PLANNED_LR3
+FR-04,US-04,AC-04-06,PATCH /requests/{id},test_change_type_clears_old,PLANNED_LR3
+FR-05,US-05,AC-05-01,PATCH /requests/{id},test_assign_known,PLANNED_LR3
+FR-05,US-05,AC-05-02,PATCH /requests/{id},test_unassign,PLANNED_LR3
+FR-05,US-05,AC-05-03,PATCH /requests/{id},test_assign_invalid,PLANNED_LR3
+FR-06,US-06,AC-06-01,POST /requests/{id}/comments; GET /requests/{id}/comments,test_comment_closed,PLANNED_LR3
+FR-06,US-06,AC-06-02,POST /requests/{id}/comments,test_comment_boundaries,PLANNED_LR3
+FR-06,US-06,AC-06-03,POST /requests/{id}/comments; GET /requests/{id}/comments,test_comment_missing,PLANNED_LR3
+FR-06,US-06,AC-06-04,POST /requests/{id}/comments,test_comment_author,PLANNED_LR3
+FR-06,US-06,AC-06-05,GET /requests/{id}/comments,test_comment_order,PLANNED_LR3
+FR-07,US-07,AC-07-01,POST /requests/{id}/close,test_close_completed,PLANNED_LR3
+FR-07,US-07,AC-07-02,POST /requests/{id}/close,test_close_rejected,PLANNED_LR3
+FR-07,US-07,AC-07-03,POST /requests/{id}/close,test_resolution_invalid,PLANNED_LR3
+FR-07,US-07,AC-07-04,GET /requests/{id}; GET /requests/{id}/comments; SQLite Storage,test_persistence_restart,PLANNED_LR3
+FR-07,US-07,AC-07-05,POST /requests/{id}/close,test_close_idempotence,PLANNED_LR3
+FR-07,US-07,AC-07-06,PATCH /requests/{id}/status,test_close_correction_match,PLANNED_LR3

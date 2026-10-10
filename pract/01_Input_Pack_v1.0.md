@@ -166,10 +166,5 @@ Source Check: зіставлено included US та AC з S1 §1/3/5/8. Покр
 
 ## Оригінали джерел
 
-- SD_Spec.docx.pdf: 13 сторінок; отримано 10.10.2026; оригінал збережено без змін у корені робочої папки. SHA-256: a99bd9ccd84b79192a9fe79d40bb6e691cc2521403e508226adc44401cb4212f.
-- Mini_Issue_Tracker_UX_UI_Methodological_Guide_UA.docx.pdf: 29 сторінок; отримано 10.10.2026; оригінал збережено без змін у корені робочої папки. SHA-256: bdbd69cd17a10b64021c50bcfc80524da1d2b7ba020e672dd2d74a6771b58c78.
-
-## Ідентифікація джерел
-
-- SD_Spec.docx.pdf: SHA-256 `a99bd9ccd84b79192a9fe79d40bb6e691cc2521403e508226adc44401cb4212f`.
-- Mini_Issue_Tracker_UX_UI_Methodological_Guide_UA.docx.pdf: SHA-256 `bdbd69cd17a10b64021c50bcfc80524da1d2b7ba020e672dd2d74a6771b58c78`.
+- SD_Spec.docx.pdf: 13 сторінок; отримано 10.10.2026.
+- Mini_Issue_Tracker_UX_UI_Methodological_Guide_UA.docx.pdf: 29 сторінок; отримано 10.10.2026.

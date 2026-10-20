@@ -2,7 +2,7 @@
 
 Базова адреса локальної реалізації ЛР2: http://127.0.0.1:8000. Обмін JSON UTF-8, Content-Type: application/json. Автентифікація та заголовки токенів відсутні. Усі приклади персональних даних синтетичні.
 
-Нормативні бізнес-правила: [requirements.md](requirements.md), розділи 6–9. Відповідність назв прикладу методички (issues → requests, users → staff, priority → urgency) пояснено в requirements.md, розділ 2; додаткових альтернативних полів або маршрутів із попередніми назвами немає. Вичерпні JSON Schema Draft 2020-12 наведено в розділі 1 цього документа. Кожний підрозділ розділу 1 визначає один іменований елемент $defs: назва підрозділу — ключ, JSON-блок — значення. Для валідації зібрати ці визначення у $defs однієї кореневої схеми; $ref виду #/$defs/Request посилається на цей каталог. Окремі файли схем не потрібні. Схеми описують нормалізовані значення: спочатку trim за контрактом, потім minLength/maxLength. Дефолти застосовує сервер під час POST; PATCH їх не застосовує. Формати date/date-time перевіряються, а не лише документуються. Бізнес-залежності від збереженого стану та нерівність значень перевіряє service, не JSON Schema.
+Нормативні бізнес-правила: [requirements.md](requirements.md), розділи 6–9. Відповідність назв прикладу методички (issues → requests, users → staff, priority → urgency) пояснено в requirements.md, розділ 2; додаткових альтернативних полів або маршрутів із попередніми назвами немає. Вичерпні JSON Schema Draft 2020-12 наведено в розділі 1 цього документа. Кожний підрозділ розділу 1 визначає один іменований елемент $defs: назва підрозділу — ключ, JSON-блок — значення. Для валідації зібрати ці визначення у $defs однієї кореневої схеми; $ref виду #/$defs/Request посилається на цей каталог. Окремі файли схем не потрібні. Схеми описують нормалізовані значення: спочатку trim за контрактом, потім minLength/maxLength. Дефолти застосовує сервер під час POST; PATCH їх не застосовує. Формати date/date-time перевіряються, а не лише документуються. Інваріанти однієї відповіді закодовано у схемах Request, Completeness і StaffList (allOf з if/then, prefixItems). Бізнес-залежності від збереженого стану, нерівність значень, а також перевірки, що потребують порівняння значень, списків або збереженого стану, перевіряє service; їх перелік і відповідні тести наведено в розділі 6.
 
 NoBody — позначення відсутнього HTTP-тіла, а не JSON null; ця схема не допускає жодного JSON-значення. У GET тіло не передається, у маршрутах без {id} path-параметрів немає. Неописані query-параметри — 422, body в GET — 422. JSON path/query у схемах є нормалізованим поданням параметрів: path "1" розбирається як 1; "abc", 0 і від’ємне — 422. Enum query case-sensitive; повтор одного query-ключа — 422 (уточнення для однозначності фільтра). Непідтримувані HTTP method та невідомі URL мають стандартну транспортну відповідь 405/404 і не є бізнес-сценаріями цього контракту.
 
@@ -451,7 +451,16 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
     "missing_fields": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "enum": [
+          "request_type",
+          "certificate_details.language",
+          "certificate_details.purpose",
+          "certificate_details.delivery_method",
+          "correction_details.target_field",
+          "correction_details.current_value",
+          "correction_details.proposed_value"
+        ]
       },
       "uniqueItems": true
     }
@@ -461,7 +470,82 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
     "is_complete",
     "missing_fields"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type_confirmed": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "is_complete": {
+            "const": false
+          },
+          "missing_fields": {
+            "const": [
+              "request_type"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type_confirmed": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_fields": {
+            "not": {
+              "contains": {
+                "const": "request_type"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "is_complete": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_fields": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "is_complete": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_fields": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
 }
 ```
 
@@ -819,7 +903,220 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
     "resolution",
     "completeness"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "not": {
+        "properties": {
+          "certificate_details": {
+            "type": "object"
+          },
+          "correction_details": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "CLOSED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "resolution": {
+            "type": "object"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "resolution": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "request_type": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "type_confirmed_by": {
+            "type": "null"
+          },
+          "type_confirmed_at": {
+            "type": "null"
+          },
+          "completeness": {
+            "properties": {
+              "type_confirmed": {
+                "const": false
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "type_confirmed_by": {
+            "type": "integer"
+          },
+          "type_confirmed_at": {
+            "type": "string"
+          },
+          "completeness": {
+            "properties": {
+              "type_confirmed": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "request_type": {
+            "const": "ENROLLMENT_CERTIFICATE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "correction_details": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "request_type": {
+            "const": "STUDENT_DATA_CORRECTION"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "certificate_details": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "IN_PROGRESS"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "completeness": {
+            "properties": {
+              "is_complete": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resolution": {
+            "type": "object",
+            "properties": {
+              "resolution_code": {
+                "const": "COMPLETED"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "completeness": {
+            "properties": {
+              "is_complete": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "request_type": {
+            "const": "ENROLLMENT_CERTIFICATE"
+          },
+          "resolution": {
+            "type": "object",
+            "properties": {
+              "resolution_code": {
+                "const": "COMPLETED"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "resolution": {
+            "properties": {
+              "result_details": {
+                "$ref": "#/$defs/CertificateResult"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "request_type": {
+            "const": "STUDENT_DATA_CORRECTION"
+          },
+          "resolution": {
+            "type": "object",
+            "properties": {
+              "resolution_code": {
+                "const": "COMPLETED"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "resolution": {
+            "properties": {
+              "result_details": {
+                "$ref": "#/$defs/CorrectionResult"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
 ```
 
@@ -1077,11 +1374,26 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
 ```json
 {
   "type": "array",
-  "items": {
-    "$ref": "#/$defs/Staff"
-  },
-  "minItems": 2,
-  "maxItems": 2
+  "prefixItems": [
+    {
+      "$ref": "#/$defs/Staff",
+      "properties": {
+        "id": {
+          "const": 1
+        }
+      }
+    },
+    {
+      "$ref": "#/$defs/Staff",
+      "properties": {
+        "id": {
+          "const": 2
+        }
+      }
+    }
+  ],
+  "items": false,
+  "minItems": 2
 }
 ```
 
@@ -1462,7 +1774,7 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
 
 **Помилки та повні приклади:**
 
-**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Для status=CLOSED без resolution при фактичному переході також 422.
+**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Також 422: передані id/status/request_type/type_confirmed_by/created_at; порожній об’єкт реквізитів; одночасно два ненульові об’єкти реквізитів.
 
 ```json
 {
@@ -1847,7 +2159,7 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
 }
 ```
 
-**409:** CLOSED; TYPE_LOCKED для зміни типу/автора IN_PROGRESS; REQUEST_INCOMPLETE для втрати реквізитів у IN_PROGRESS.
+**409:** CLOSED; TYPE_LOCKED для зміни типу/автора IN_PROGRESS; APPLICANT_LOCKED для зміни student_id/full_name поза OPEN; REQUEST_INCOMPLETE для втрати реквізитів у IN_PROGRESS.
 
 ```json
 {
@@ -1864,7 +2176,7 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
 }
 ```
 
-**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Для status=CLOSED без resolution при фактичному переході також 422.
+**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Також 422: status або resolution у тілі (зміна статусу — лише через 2.7/2.8); request_type без type_confirmed_by або навпаки; непорожній об’єкт реквізитів, несумісний із підтвердженим типом.
 
 ```json
 {
@@ -2002,7 +2314,7 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
 }
 ```
 
-**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Для status=CLOSED без resolution при фактичному переході також 422.
+**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Правило закриття: при фактичному переході OPEN/IN_PROGRESS → CLOSED відсутня або невалідна resolution — 422; повтор CLOSED → CLOSED без resolution — 200 без змін (requirements.md §7). resolution разом зі status=OPEN або IN_PROGRESS — 422. issued_on або corrected_at поза часовими межами D-12 (requirements.md §6.11) — 422.
 
 ```json
 {
@@ -2157,7 +2469,7 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
 }
 ```
 
-**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Для status=CLOSED без resolution при фактичному переході також 422.
+**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Правило закриття: resolution обов’язкова завжди, зокрема при повторному закритті CLOSED-звернення; відсутня або невалідна resolution — 422 (CloseInput); issued_on або corrected_at поза часовими межами D-12 (requirements.md §6.11) — 422.
 
 ```json
 {
@@ -2260,7 +2572,7 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
 }
 ```
 
-**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Для status=CLOSED без resolution при фактичному переході також 422.
+**422:** Невалідні параметри/JSON, відсутнє required, null non-null, unknown field, неправильний enum чи межі. Також 422: author_id не 1/2; передані request_id/id/created_at. Додавання коментаря не залежить від статусу й не приймає resolution.
 
 ```json
 {
@@ -2478,3 +2790,72 @@ POST /requests/1/close для OPEN допускає таке тіло:
 ## 4. Узгодженість двох способів закриття
 
 PATCH status із status=CLOSED та повною resolution і POST close із повною resolution є двома входами одного use case. Нормативні повні схеми та конкретні тіла наведені вище. При повторі закриття порівнюються всі нормалізовані користувацькі поля резолюції; відсутні nullable поля нормалізуються до null; resolved_at у вхідних даних заборонений. Рівний повтор не змінює жодних значень або часу.
+
+## 5. Набір перевірки прикладів
+
+Перевіряються 40 окремих JSON-прикладів розділів 2–3; блоки схем (24 у каталозі §1 і по чотири в кожному маршруті §2) до прикладів не належать. Кожний приклад валідується за JSON Schema Draft 2020-12 з definitions каталогу §1.
+
+| Категорія | Кількість | Склад | Схема перевірки |
+|---|---|---|---|
+| Тіла запитів | 7 | «Приклад запиту» в 2.3, 2.6, 2.7, 2.8, 2.9; тіла закриття в §3 «Відмова без підтвердженого типу» та «Виконане виправлення» | RequestCreate, RequestPatch, StatusPatch, CloseInput, CommentCreate; для §3 — CloseInput |
+| Успішні відповіді | 10 | «Повне тіло відповіді» в 2.1–2.10 | схема відповіді цього маршруту |
+| Тіла помилок | 23 | 2.1 (422), 2.2 (422), 2.3 (422), 2.4 (422), 2.5 (404, 422), 2.6 (400, 404, 409, 422), 2.7 (404, 409, 422), 2.8 (404, 409, 422), 2.9 (404, 422), 2.10 (404, 422); §3 «CLOSED → OPEN», «Спроба початку без підтвердження», «Частково невалідний PATCH» | Error |
+
+Негативні входи: кожний отримано з валідного прикладу запиту цього контракту зміною одного поля; схема має його відхилити.
+
+| ID | Джерело | Схема | Вхід |
+|---|---|---|---|
+| N-01 | AC-01-03 | RequestCreate | title із 2 символів |
+| N-02 | AC-01-03 | RequestCreate | відсутній student_id |
+| N-03 | AC-03-02 | RequestPatch | {"title":null} |
+| N-04 | AC-03-03 | RequestPatch | {"status":"CLOSED"} |
+| N-05 | AC-03-04 | RequestPatch | {"title":"Нова назва","urgency":"HIGH"} |
+| N-06 | AC-04-05 | RequestPatch | request_type без type_confirmed_by |
+| N-07 | AC-05-03 | RequestPatch | {"assignee_id":3} |
+| N-08 | AC-06-02 | CommentCreate | text із 1001 символу |
+| N-09 | AC-06-04 | CommentCreate | author_id=3 |
+| N-10 | 2.8 | CloseInput | {} без resolution |
+| N-11 | 2.7 | StatusPatch | status=OPEN разом із resolution |
+| N-12 | FR-07 | CloseInput | REJECTED із rejection_reason із 9 символів |
+
+Недопустимі відповіді: кожну отримано з валідного прикладу відповіді цього контракту порушенням одного інваріанта; схема має її відхилити.
+
+| ID | Схема | Відповідь |
+|---|---|---|
+| R-01 | StaffList | два елементи {"id":1,"name":"Agent A"}, Agent B відсутній |
+| R-02 | StaffList | Agent B перед Agent A (порушено id ASC) |
+| R-03 | Request | status=CLOSED і resolution=null |
+| R-04 | Request | status=OPEN із ненульовою resolution |
+| R-05 | Completeness | is_complete=true і непорожній missing_fields |
+| R-06 | Completeness | is_complete=false і missing_fields=[] |
+| R-07 | Request | одночасно ненульові certificate_details і correction_details |
+| R-08 | Request | request_type задано, type_confirmed_by=null |
+| R-09 | Request | request_type=null, completeness.type_confirmed=true |
+| R-10 | Request | ENROLLMENT_CERTIFICATE з ненульовим correction_details |
+| R-11 | Request | IN_PROGRESS із is_complete=false |
+
+Допустимі граничні стани, які схема має приймати:
+
+| ID | Стан |
+|---|---|
+| A-01 | CLOSED/REJECTED для непідтвердженого звернення: request_type=null, completeness.type_confirmed=false |
+| A-02 | CLOSED/COMPLETED для STUDENT_DATA_CORRECTION із CorrectionResult |
+| A-03 | OPEN із підтвердженим ENROLLMENT_CERTIFICATE без purpose: is_complete=false, missing_fields=["certificate_details.purpose"] |
+| A-04 | CLOSED/REJECTED для підтвердженого неповного звернення |
+
+Результат повторної перевірки 20.10.2026: усі 24 схеми каталогу коректні; 40 із 40 прикладів відповідають своїм схемам; 12 із 12 негативних входів і 11 із 11 недопустимих відповідей відхилено; 4 із 4 допустимих граничних станів прийнято. Це валідація документації, а не тест реалізованого API.
+
+## 6. Перевірки відповіді поза JSON Schema
+
+Проходження schema validation є необхідною, але недостатньою умовою. Тести ЛР3 перевіряють кожну відповідь за схемою з розділу 1 і додатково за наведеними нижче правилами, які JSON Schema не виражає, бо вони потребують порівняння значень, кількох елементів списку або збереженого стану.
+
+| Перевірка | Джерело | Майбутній тест |
+|---|---|---|
+| RequestList: унікальні id; порядок created_at ASC, id ASC | FR-02, AC-02-05 | test_request_order |
+| CommentList: унікальні id; порядок created_at ASC, id ASC | FR-06, AC-06-05 | test_comment_order |
+| Кожний елемент RequestList задовольняє всі передані фільтри | AC-02-01 | test_filters_and |
+| missing_fields точно відповідає null-полям реквізитів підтвердженого типу в порядку requirements.md §6.11 | AC-04-02, AC-04-06 | test_start_incomplete, test_change_type_clears_old |
+| CorrectionResult: target_field, previous_value, corrected_value дорівнюють target_field, current_value, proposed_value з correction_details | AC-07-06 | test_close_correction_match |
+| Повтор закриття не змінює resolved_at і решту резолюції | AC-07-05 | test_close_idempotence |
+| Відповідь GET після перезапуску збігається зі збереженим станом, включно з id | AC-07-04 | test_persistence_restart |
+| Часові межі результату: дата created_at ≤ issued_on ≤ дата resolved_at; created_at ≤ corrected_at ≤ resolved_at | D-12, AC-07-07 | test_result_time_bounds |

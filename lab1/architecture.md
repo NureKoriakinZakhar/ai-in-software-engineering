@@ -27,7 +27,7 @@ flowchart LR
   Routers --> Client
 ```
 
-Routers: приймають path/query/body, викликають service, повертають коди з контракту, переводять RequestValidationError у єдину структуру 422. Не містять бізнес-переходів. Schemas: strict типи, enum, нормалізація, довжина, дата, заборона зайвих полів та форма резолюції; PATCH зберігає набір явно переданих ключів. Service: пошук, AND-фільтрація, підтвердження, merged candidate, комплектність, 3×3 переходи, типізований результат, ідемпотентність. Storage: FK, сортування, транзакції, відновлення даних із файлу; жодних мережевих залежностей. Stub: окремий об’єкт для точки розширення, ніколи не викликається основними CRUD-командами.
+Routers: приймають path/query/body, викликають service, повертають коди з контракту, переводять RequestValidationError у єдину структуру 422. Не містять бізнес-переходів. Schemas: strict типи, нормалізація (trim), довжина, enum, дата, заборона зайвих полів та форма резолюції; PATCH зберігає набір явно переданих ключів. Service: пошук, AND-фільтрація, підтвердження, merged candidate, комплектність, 3×3 переходи, типізований результат, ідемпотентність. Storage: FK, сортування, транзакції, відновлення даних із файлу; жодних мережевих залежностей. Stub: окремий об’єкт для точки розширення, ніколи не викликається основними CRUD-командами.
 
 План структури ЛР2: app/main.py (composition root); app/api.py (маршрути); app/schemas.py (вхід/вихід); app/models.py (доменні value objects); app/service.py (use cases); app/database.py (SQLite та транзакції); app/repository.py (CRUD storage); app/ai_port.py (RecommendationProvider і stub); tests/conftest.py (тимчасова БД). Цей перелік не створює реалізації в ЛР1.
 
@@ -37,8 +37,8 @@ Routers: приймають path/query/body, викликають service, по�
 
 ```mermaid
 erDiagram
-  STAFF ||--o{ REQUEST : "assignee_id"
-  STAFF ||--o{ REQUEST : "type_confirmed_by"
+  STAFF |o--o{ REQUEST : "assignee_id (nullable)"
+  STAFF |o--o{ REQUEST : "type_confirmed_by (nullable)"
   STAFF ||--o{ COMMENT : "author_id"
   STAFF ||--o{ RESOLUTION : "resolved_by"
   REQUEST ||--o| SERVICE_DETAILS : "має реквізити"
@@ -84,7 +84,7 @@ erDiagram
   }
 ```
 
-ServiceDetails.kind відповідає одному із двох типів і може існувати до підтвердження request_type. payload_json зберігає лише поля відповідного value object, включаючи null для відсутніх даних. API повертає два іменовані nullable об’єкти, storage — один рядок із kind. Очищення об’єкта видаляє рядок; зміна типу замінює його в тій самій транзакції. Nullable FK відповідають nullable полям API.
+ServiceDetails.kind відповідає одному із двох типів і може існувати до підтвердження request_type. payload_json зберігає лише поля відповідного value object, включаючи null для відсутніх даних. API повертає два іменовані nullable об’єкти, storage — один рядок із kind. Очищення об’єкта видаляє рядок; зміна типу замінює його в тій самій транзакції. Зв’язки STAFF → REQUEST мають кратність «нуль або один» з боку STAFF: assignee_id дорівнює null, доки виконавця не призначено або після зняття призначення (FR-05, AC-05-02); type_confirmed_by і type_confirmed_at дорівнюють null до підтвердження типу людиною (D-01). Зв’язки STAFF → COMMENT (author_id) і STAFF → RESOLUTION (resolved_by) обов’язкові, оскільки ці поля не допускають null.
 
 ## 3. Збереження та транзакції
 

@@ -13,12 +13,17 @@ FR-03,US-03,AC-03-03,PATCH /requests/{id},test_patch_empty_unknown,PLANNED_LR3
 FR-03,US-03,AC-03-04,PATCH /requests/{id},test_patch_atomic,PLANNED_LR3
 FR-03,US-03,AC-03-05,PATCH /requests/{id},test_patch_closed,PLANNED_LR3
 FR-03,US-03,AC-03-06,PATCH /requests/{id},test_progress_completeness_invariant,PLANNED_LR3
+FR-03,US-03,AC-03-07,PATCH /requests/{id},test_applicant_edit_open_only,PLANNED_LR3
+FR-03,US-03,AC-03-08,PATCH /requests/{id},test_patch_merge_correction_conflict,PLANNED_LR3
 FR-04,US-04,AC-04-01,PATCH /requests/{id}; PATCH /requests/{id}/status,test_confirm_start,PLANNED_LR3
 FR-04,US-04,AC-04-02,PATCH /requests/{id}/status,test_start_incomplete,PLANNED_LR3
 FR-04,US-04,AC-04-03,PATCH /requests/{id}/status,test_closed_cannot_reopen,PLANNED_LR3
 FR-04,US-04,AC-04-04,PATCH /requests/{id}/status,test_progress_noop_backward,PLANNED_LR3
 FR-04,US-04,AC-04-05,PATCH /requests/{id},test_confirmation_pair,PLANNED_LR3
 FR-04,US-04,AC-04-06,PATCH /requests/{id},test_change_type_clears_old,PLANNED_LR3
+FR-04,US-04,AC-04-07,PATCH /requests/{id},test_change_type_atomic,PLANNED_LR3
+FR-04,US-04,AC-04-08,PATCH /requests/{id},test_confirmation_repeat,PLANNED_LR3
+FR-04,US-04,AC-04-09,PATCH /requests/{id}/status,test_transition_matrix_remaining,PLANNED_LR3
 FR-05,US-05,AC-05-01,PATCH /requests/{id},test_assign_known,PLANNED_LR3
 FR-05,US-05,AC-05-02,PATCH /requests/{id},test_unassign,PLANNED_LR3
 FR-05,US-05,AC-05-03,PATCH /requests/{id},test_assign_invalid,PLANNED_LR3
@@ -33,3 +38,4 @@ FR-07,US-07,AC-07-03,POST /requests/{id}/close,test_resolution_invalid,PLANNED_L
 FR-07,US-07,AC-07-04,GET /requests/{id}; GET /requests/{id}/comments; SQLite Storage,test_persistence_restart,PLANNED_LR3
 FR-07,US-07,AC-07-05,POST /requests/{id}/close,test_close_idempotence,PLANNED_LR3
 FR-07,US-07,AC-07-06,PATCH /requests/{id}/status,test_close_correction_match,PLANNED_LR3
+FR-07,US-07,AC-07-07,PATCH /requests/{id}/status; POST /requests/{id}/close,test_result_time_bounds,PLANNED_LR3

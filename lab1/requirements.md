@@ -29,15 +29,17 @@ Out-of-Scope: реєстрація, паролі, JWT, OAuth, рольова а�
 | D-06 | Як повторити закриття? | Повтор status=CLOSED без резолюції — 200 без змін. Якщо резолюція передана, вона має дорівнювати збереженій після нормалізації, інакше 409. POST close завжди має резолюцію. | Ідемпотентність не дозволяє переписувати результат. |
 | D-07 | Як зіставити FR-07 двох джерел? | FR-07 містить результат розгляду та збереження/валідацію; перевірка persistence окремим AC-07-04. | Обов’язок з методички збережений. |
 | D-08 | Які поля та межі ще потрібні? | student_id — рядок 1–32; full_name — 3–120; target_field — рядок 1–64; значення виправлення 1–200, запропоноване відрізняється від поточного; результат довідки має номер і дату, результат виправлення — поле, значення, час. | Технічні межі та структура результату є явними припущеннями. |
-| D-09 | Як розмежувати помилки? | 422 — форма/значення; 404 — відсутній ресурс; 400 — порожня команда; 409 — конфлікт стану. Спочатку валідація форми, потім пошук, потім перевірка команди й бізнес-умов. | Однаковий випадок має однаковий HTTP-код. |
+| D-09 | Як розмежувати помилки? | 422 — форма/значення; 404 — відсутній ресурс; 400 — порожня команда; 409 — конфлікт стану. Спочатку валідація форми (тип → нормалізація → межі, §6.1), потім пошук, потім перевірка команди й бізнес-умов. | Однаковий випадок має однаковий HTTP-код. |
 | D-10 | Чи ШІ сам визначає комплектність? | У ЛР4 ШІ перевіряє комплектність за підтвердженим типом і пояснює, які відомості слід уточнити; блокування виконує service за каталогом обов’язкових полів підтвердженого типу. Коментар не заповнює реквізити автоматично. | Автономність ядра та Human-in-the-loop. |
+| D-11 | Чи можна змінювати заявника під час обробки? | student_id і full_name змінюються лише в OPEN як виправлення помилки введення; перенесення звернення іншому студенту не підтримується — створюється нове звернення. У IN_PROGRESS — 409 APPLICANT_LOCKED. Підтвердження типу в OPEN зберігається, бо стосується змісту звернення, а не особи заявника. | Звернення в обробці не може непомітно стати зверненням іншого студента з чужим підтвердженням. |
+| D-12 | Які часові межі має результат виконання? | issued_on: від дати created_at до дати resolved_at (UTC), майбутня дата заборонена. corrected_at: від created_at до resolved_at. Порушення — 422 з полем body.resolution.result_details.issued_on або corrected_at. При повторі закриття порівняння виконується зі збереженим resolved_at. | Результат не може датуватися до появи звернення або після його закриття. |
 
 
 Класифікація результатів аналізу за кроком 2 методички:
 
 - **Заданий факт:** перелік двох співробітників, допустимі статуси, межі title, підтвердження людиною та блокування IN_PROGRESS без комплектності.
 - **Корисне уточнення форми:** D-07 зберігає persistence у FR-07; матриця перелічує всі дев’ять пар, а Error envelope прив’язує причину до поля.
-- **Проєктні припущення:** D-01, D-02, D-03, D-04, D-05, D-06, D-08 і конкретний порядок перевірок D-09. Вони закривають технічні прогалини та не видаються за цитату замовника.
+- **Проєктні припущення:** D-01, D-02, D-03, D-04, D-05, D-06, D-08, D-11, D-12 і конкретний порядок перевірок D-09. Вони закривають технічні прогалини та не видаються за цитату замовника.
 - **Зайва функція:** реєстрація, JWT і видалення звернень як розглянуті проєктні альтернативи виходять за погоджений обсяг.
 - **Суперечність рішенню замовника:** автоматичне підтвердження типу чи зміна статусу моделлю порушували б Human-in-the-loop; таких правил у прийнятому контракті немає. Це перевірка альтернативи, а не твердження про спостережену галюцинацію.
 
@@ -55,7 +57,7 @@ FR-07 методички «Збереження й валідація» збер
 | --- | --- | --- |
 | FR-01 | Створення | POST створює звернення з title, student_id, full_name; description="", urgency=medium, status=OPEN, тип не підтверджений. id і created_at встановлює сервер. Початкові реквізити дозволені лише для одного типу. |
 | FR-02 | Перегляд та фільтрація | Список і деталізація доступні в усіх станах. Фільтри status, urgency, request_type незалежні, разом AND. Відсутність збігів — 200 з []. Сортування created_at ASC, id ASC. |
-| FR-03 | Часткове редагування | Редагуються лише дозволені явно передані поля, із вкладеним merge. Запит перевіряється повністю до збереження. CLOSED забороняє PATCH 409. Відсутнє поле не змінюється. |
+| FR-03 | Часткове редагування | Редагуються лише дозволені явно передані поля, із вкладеним merge. Запит перевіряється повністю до збереження. CLOSED забороняє PATCH 409. student_id і full_name змінюються лише в OPEN (D-11). Відсутнє поле не змінюється. |
 | FR-04 | Статус і комплектність | Повна матриця у розділі 7. IN_PROGRESS можливий лише після підтвердження типу та заповнення його реквізитів. Невдала команда залишає дані незмінними. |
 | FR-05 | Відповідальний | assignee_id дорівнює 1, 2 або null. Призначення через PATCH; null знімає призначення; інший ID — 422. Призначення не є умовою початку обробки. |
 | FR-06 | Коментарі | Створення і список коментарів до наявного звернення у будь-якому статусі. Автор 1/2, текст 1–1000 після trim, серверні id та UTC. Коментарі впорядковані created_at ASC, id ASC. |
@@ -96,30 +98,35 @@ FR-07 методички «Збереження й валідація» збер
 
 Як співробітник, я хочу уточнювати частину даних, щоб доповнити звернення без втрати попередньої інформації. Пов’язана вимога: FR-03.
 
-- **AC-03-01:** Given OPEN із title та purpose, When PATCH із description і certificate_details.language, Then 200; title та purpose не змінені, description і language оновлені.
+- **AC-03-01:** Given OPEN без підтвердженого типу або з типом ENROLLMENT_CERTIFICATE, із title та certificate_details.purpose, When PATCH із description і certificate_details.language, Then 200; title та purpose не змінені, description і language оновлені.
 - **AC-03-02:** Given OPEN, When PATCH {"title":null}, Then 422 і стан до запиту збережений.
 - **AC-03-03:** Given OPEN, When PATCH {}, Then 400 EMPTY_PATCH; When PATCH із status, Then 422 для недозволеного поля.
 - **AC-03-04:** Given OPEN, When PATCH із коректним title та urgency="HIGH", Then 422 і title не змінений.
 - **AC-03-05:** Given CLOSED, When валідний непорожній PATCH, Then 409 REQUEST_CLOSED і дані незмінні.
-- **AC-03-06:** Given комплектний IN_PROGRESS, When PATCH очищає обов’язковий purpose, Then 409 REQUEST_INCOMPLETE і попередній purpose збережений.
+- **AC-03-06:** Given комплектний IN_PROGRESS типу ENROLLMENT_CERTIFICATE, When PATCH очищає обов’язковий purpose, Then 409 REQUEST_INCOMPLETE і попередній purpose збережений.
+- **AC-03-07:** Given OPEN з підтвердженим типом, When PATCH student_id, Then 200, student_id оновлений, request_type, type_confirmed_by і type_confirmed_at незмінні. Given комплектний IN_PROGRESS, When PATCH student_id або full_name, Then 409 APPLICANT_LOCKED і дані незмінні.
+- **AC-03-08:** Given OPEN зі збереженими correction_details.current_value="A" і proposed_value="B", When PATCH {"correction_details":{"current_value":"B"}}, Then 422 з field=body.correction_details.current_value; current_value="A" і proposed_value="B" збережені.
 
 ### US-04
 
 Як співробітник, я хочу підтверджувати тип і починати обробку, щоб взяти в роботу лише комплектне звернення. Пов’язана вимога: FR-04.
 
-- **AC-04-01:** Given OPEN із повними certificate_details, When PATCH підтверджує тип із type_confirmed_by=1 і PATCH status=IN_PROGRESS, Then обидві відповіді 200, тип підтверджений, статус IN_PROGRESS.
-- **AC-04-02:** Given OPEN без підтвердження або без purpose, When PATCH status=IN_PROGRESS, Then 409 TYPE_NOT_CONFIRMED або REQUEST_INCOMPLETE, status залишається OPEN.
+- **AC-04-01:** Given OPEN із повними certificate_details, When PATCH підтверджує ENROLLMENT_CERTIFICATE із type_confirmed_by=1 і PATCH status=IN_PROGRESS, Then обидві відповіді 200, тип підтверджений, статус IN_PROGRESS.
+- **AC-04-02:** Given OPEN без підтвердженого типу, When PATCH status=IN_PROGRESS, Then 409 TYPE_NOT_CONFIRMED. Given OPEN з підтвердженим ENROLLMENT_CERTIFICATE, заповненими language і delivery_method, але без purpose, When PATCH status=IN_PROGRESS, Then 409 REQUEST_INCOMPLETE з field=request.certificate_details.purpose. В обох сценаріях status залишається OPEN.
 - **AC-04-03:** Given CLOSED, When PATCH status=OPEN, Then 409 INVALID_TRANSITION; When PATCH status=CLOSED без резолюції, Then 200 і дані незмінні.
 - **AC-04-04:** Given IN_PROGRESS, When PATCH status=IN_PROGRESS, Then 200 без зміни даних; When PATCH status=OPEN, Then 409 INVALID_TRANSITION.
 - **AC-04-05:** Given OPEN, When PATCH request_type без type_confirmed_by, Then 422 з field=body.type_confirmed_by.
 - **AC-04-06:** Given OPEN з реквізитами довідки, When PATCH підтверджує STUDENT_DATA_CORRECTION і передає correction_details, Then 200, certificate_details=null і completeness відповідає новому типу.
+- **AC-04-07:** Given OPEN з підтвердженим ENROLLMENT_CERTIFICATE і certificate_details, When PATCH передає request_type=STUDENT_DATA_CORRECTION, type_confirmed_by=2 і correction_details.target_field із 65 символів, Then 422; request_type, type_confirmed_by, type_confirmed_at і certificate_details незмінні.
+- **AC-04-08:** Given OPEN, тип ENROLLMENT_CERTIFICATE підтверджений співробітником 1, When PATCH тієї самої пари, Then 200 і type_confirmed_at незмінний; When PATCH ENROLLMENT_CERTIFICATE з type_confirmed_by=2, Then 200, type_confirmed_by=2 і новий type_confirmed_at.
+- **AC-04-09:** Given OPEN, When PATCH status=OPEN, Then 200 без зміни даних. Given CLOSED, When PATCH status=IN_PROGRESS, Then 409 INVALID_TRANSITION і дані незмінні.
 
 ### US-05
 
 Як співробітник, я хочу призначати відповідального, щоб розподіляти роботу між двома тестовими агентами. Пов’язана вимога: FR-05.
 
 - **AC-05-01:** Given OPEN без відповідального, When PATCH assignee_id=2, Then 200 і assignee_id=2.
-- **AC-05-02:** Given assignee_id=2, When PATCH assignee_id=null, Then 200 і assignee_id=null.
+- **AC-05-02:** Given OPEN або IN_PROGRESS з assignee_id=2, When PATCH assignee_id=null, Then 200 і assignee_id=null.
 - **AC-05-03:** Given OPEN, When PATCH assignee_id=3 або true, Then 422 і призначення незмінне.
 
 ### US-06
@@ -142,6 +149,7 @@ FR-07 методички «Збереження й валідація» збер
 - **AC-07-04:** Given збережені звернення, підтвердження, реквізити, коментар і резолюція, When сервер зупинено та запущено з тим самим SQLite, Then GET detail та comments повертають 200 із тими самими значеннями та id.
 - **AC-07-05:** Given CLOSED із резолюцією, When POST close із рівною резолюцією, Then 200 без зміни resolved_at; із іншою коректною резолюцією — 409 RESOLUTION_CONFLICT.
 - **AC-07-06:** Given підтверджений IN_PROGRESS STUDENT_DATA_CORRECTION, When PATCH status=CLOSED із результатом, де target_field, previous_value та corrected_value відповідають correction_details.target_field, current_value та proposed_value, Then 200, CLOSED; невідповідність — 409 RESULT_MISMATCH.
+- **AC-07-07:** Given комплектний IN_PROGRESS STUDENT_DATA_CORRECTION, When PATCH status=CLOSED із COMPLETED, де corrected_at пізніше поточного часу сервера, Then 422 з field=body.resolution.result_details.corrected_at, status і резолюція незмінні. Given комплектний IN_PROGRESS ENROLLMENT_CERTIFICATE, When POST close із COMPLETED та issued_on пізніше поточної дати UTC, Then 422 з field=body.resolution.result_details.issued_on.
 
 ### US-08 — Future, ЛР4
 
@@ -149,7 +157,7 @@ FR-07 методички «Збереження й валідація» збер
 
 - **AC-08-01:** Given довільне звернення і доступний адаптер ЛР4, When отримано рекомендацію, Then результат містить recommended_type, recommended_urgency і summary, а повторний GET звернення 200 показує незмінені бізнес-поля.
 - **AC-08-02:** Given LLM недоступна, When виконуються операції поточного ядра, Then створення повертає 201, читання і валідні зміни 200; немає залежності від рекомендації.
-- **AC-08-03:** Given рекомендація пропонує тип довідки, When співробітник обирає виправлення через наявний PATCH, Then 200 і збережено людський вибір.
+- **AC-08-03:** Given OPEN, рекомендація пропонує ENROLLMENT_CERTIFICATE, When співробітник через PATCH передає request_type=STUDENT_DATA_CORRECTION і type_confirmed_by, Then 200, збережено вибір людини.
 
 - **AC-08-04 (Future):** Given співробітник підтвердив ENROLLMENT_CERTIFICATE з валідними language і delivery_method, але без purpose, When у ЛР4 виконується ШІ-аналіз комплектності, Then completeness_hint пояснює необхідність призначення довідки; GET звернення повертає 200 зі status=OPEN і missing_fields=["certificate_details.purpose"], а спроба IN_PROGRESS — 409. Рекомендація не заповнює поле автоматично.
 
@@ -159,7 +167,7 @@ FR-07 методички «Збереження й валідація» збер
 
 ### 6.1 Загальні правила
 
-JSON UTF-8; enum case-sensitive. Рядкові поля, крім description, нормалізуються видаленням крайніх Unicode-пробілів; довжина вимірюється кількістю Unicode-кодів після нормалізації. description зберігається без trim, довжина до 2000. Нормалізація виконується до перевірки меж. Не допускається автоматичне приведення чисел/boolean до рядків або рядків/boolean до integer. Дати ISO 8601 YYYY-MM-DD; час UTC RFC3339 із Z. Синтаксично неправильний JSON — 422 із field=body. Невідомі поля на будь-якому рівні — 422.
+JSON UTF-8; enum case-sensitive. Рядкові поля з позначкою trim у таблицях §6 нормалізуються видаленням крайніх Unicode-пробілів; довжина вимірюється кількістю Unicode-кодів після нормалізації. description зберігається без trim, довжина до 2000. Єдиний порядок обробки вхідних даних для POST, PATCH, зміни статусу, закриття та коментарів: (1) перевірка синтаксису JSON, дозволених полів і типу кожного значення, включно з null для non-null полів; (2) нормалізація — trim полів, позначених «trim» у таблицях §6, та приведення часу до UTC; enum-значення та description не нормалізуються; (3) перевірка довжини, enum, форматів і допустимих ID на нормалізованих значеннях; порушення етапів 1–3 — 422; (4) перевірка бізнес-правил (404, 400, 409). Наприклад, title зі 120 символів і двома крайніми пробілами після trim має 120 символів і приймається. Не допускається автоматичне приведення чисел/boolean до рядків або рядків/boolean до integer. Дати ISO 8601 YYYY-MM-DD; час UTC RFC3339 із Z. Синтаксично неправильний JSON — 422 із field=body. Невідомі поля на будь-якому рівні — 422.
 
 Для таблиць: «—» означає відсутність default; «обчисл.» означає обчислюване поле відповіді, яке не зберігається. Усі серверні поля заборонені у вхідних тілах. POST вимагає лише поля, позначені як обов’язкові при створенні; PATCH дозволяє відсутність усіх редагованих полів, але порожню команду відхиляє 400.
 
@@ -168,8 +176,8 @@ JSON UTF-8; enum case-sensitive. Рядкові поля, крім description, 
 | Поле | Тип | Генератор | Обов’язковість | Default | Null | Нормалізація/валідація | Редагування |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | id | integer | System | відповідь | SQLite ID | ні | >0; незмінний, без повторного використання | ні |
-| student_id | string | User | POST | — | ні | trim; 1–32 | PATCH до CLOSED |
-| full_name | string | User | POST | — | ні | trim; 3–120 | PATCH до CLOSED |
+| student_id | string | User | POST | — | ні | trim; 1–32 | PATCH лише в OPEN (D-11) |
+| full_name | string | User | POST | — | ні | trim; 3–120 | PATCH лише в OPEN (D-11) |
 | title | string | User | POST | — | ні | trim; 3–120 | PATCH до CLOSED |
 | description | string | User | ні | "" | ні | без trim; 0–2000 | PATCH до CLOSED |
 | urgency | enum string | User | ні | medium | ні | low / medium / high | PATCH до CLOSED |
@@ -234,7 +242,7 @@ JSON UTF-8; enum case-sensitive. Рядкові поля, крім description, 
 | Поле | Тип | Генератор | Обов’язковість | Default | Null | Нормалізація/валідація | Редагування |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | certificate_number | string | User | COMPLETED довідка | — | ні | trim; 1–64 | ні |
-| issued_on | date | User | COMPLETED довідка | — | ні | існуюча календарна дата ISO 8601 | ні |
+| issued_on | date | User | COMPLETED довідка | — | ні | існуюча календарна дата ISO 8601; від дати created_at до дати resolved_at (UTC), не в майбутньому (D-12) | ні |
 
 ### 6.9 CorrectionResult
 
@@ -243,7 +251,7 @@ JSON UTF-8; enum case-sensitive. Рядкові поля, крім description, 
 | target_field | string | User | COMPLETED виправлення | — | ні | trim; 1–64; дорівнює correction_details.target_field | ні |
 | previous_value | string | User | COMPLETED виправлення | — | ні | trim; 1–200; дорівнює current_value | ні |
 | corrected_value | string | User | COMPLETED виправлення | — | ні | trim; 1–200; дорівнює proposed_value | ні |
-| corrected_at | datetime | User | COMPLETED виправлення | — | ні | RFC3339; вхід із часовим поясом нормалізується до UTC | ні |
+| corrected_at | datetime | User | COMPLETED виправлення | — | ні | RFC3339; вхід із часовим поясом нормалізується до UTC; created_at ≤ corrected_at ≤ resolved_at (D-12) | ні |
 
 ### 6.10 Completeness
 
@@ -261,7 +269,7 @@ JSON UTF-8; enum case-sensitive. Рядкові поля, крім description, 
 
 Перевірка комплектності: ENROLLMENT_CERTIFICATE потребує language, purpose, delivery_method; STUDENT_DATA_CORRECTION — target_field, current_value, proposed_value. null чи відсутній об’єкт означає брак його полів. Спочатку перевіряється підтвердження типу: за його відсутності missing_fields=["request_type"], is_complete=false незалежно від попередньо введених деталей. Після підтвердження повертаються точні шляхи пропущених реквізитів без префікса request: certificate_details.language, certificate_details.purpose, certificate_details.delivery_method або correction_details.target_field, correction_details.current_value, correction_details.proposed_value; порядок відповідає наведеному переліку. У details помилки до кожного такого шляху додається префікс request. Невалідні значення не потрапляють до збереженої моделі. Зіставлення current_value і proposed_value виконується після merge навіть для частково заповненого OPEN; рівність двох заданих значень — 422.
 
-REJECTED дозволяє закрити неповне звернення; його completeness може залишитися false. COMPLETED допускається лише для підтвердженого комплектного типу. result_details для довідки має certificate_number та issued_on; для виправлення — target_field, previous_value, corrected_value, corrected_at. Невідповідний різновид result_details або інші реквізити виправлення — 409 RESULT_MISMATCH. Форма кожного різновиду перевіряється 422 до бізнес-порівняння. У REJECTED result_details відсутній/null; у COMPLETED rejection_reason відсутній/null. Одночасне непорожнє значення взаємовиключних полів — 422.
+REJECTED дозволяє закрити неповне звернення; його completeness може залишитися false. COMPLETED допускається лише для підтвердженого комплектного типу. result_details для довідки має certificate_number та issued_on; для виправлення — target_field, previous_value, corrected_value, corrected_at. Невідповідний різновид result_details або інші реквізити виправлення — 409 RESULT_MISMATCH. Форма кожного різновиду перевіряється 422 до бізнес-порівняння. У REJECTED result_details відсутній/null; у COMPLETED rejection_reason відсутній/null. Одночасне непорожнє значення взаємовиключних полів — 422. Часові межі результату (D-12): issued_on — від дати created_at до дати resolved_at за UTC; corrected_at — від created_at до resolved_at; порушення — 422 з field=body.resolution.result_details.issued_on або corrected_at, статус і резолюція не змінюються.
 
 
 ### 6.12 Staff — незмінний тестовий довідник
@@ -275,17 +283,17 @@ REJECTED дозволяє закрити неповне звернення; йо
 
 Перед застосуванням матриці перевіряються форма тіла (422) і існування звернення (404). Для переходу в CLOSED можна використовувати PATCH status з resolution або POST close з resolution.
 
-| Поточний | Запитуваний | HTTP | Умова та результат |
-| --- | --- | --- | --- |
-| OPEN | OPEN | 200 | Без змін, резолюція заборонена 422; комплектність не перевіряється. |
-| OPEN | IN_PROGRESS | 200 / 409 | 200 лише type_confirmed=true та is_complete=true; інакше 409 TYPE_NOT_CONFIRMED або REQUEST_INCOMPLETE. Резолюція заборонена 422. |
-| OPEN | CLOSED | 200 / 422 / 409 | Потрібна resolution; відсутня/невалідна — 422. REJECTED потребує причини. COMPLETED потребує підтвердження, комплектності й узгоджених результатів; порушення — 409. |
-| IN_PROGRESS | OPEN | 409 | INVALID_TRANSITION; стан незмінний. |
-| IN_PROGRESS | IN_PROGRESS | 200 | Ідемпотентно без змін; резолюція заборонена 422. |
-| IN_PROGRESS | CLOSED | 200 / 422 / 409 | Валідна resolution: 200. Не задана/невалідна: 422. Невідповідний результат: 409 RESULT_MISMATCH. |
-| CLOSED | OPEN | 409 | INVALID_TRANSITION; повернення заборонене. |
-| CLOSED | IN_PROGRESS | 409 | INVALID_TRANSITION; повернення заборонене. |
-| CLOSED | CLOSED | 200 / 409 | Без resolution — 200 без змін; рівна збереженій resolution — 200; інша коректна — 409 RESOLUTION_CONFLICT. |
+| Поточний | Запитуваний | HTTP | Умова та результат | AC |
+| --- | --- | --- | --- | --- |
+| OPEN | OPEN | 200 | Без змін, резолюція заборонена 422; комплектність не перевіряється. | AC-04-09 |
+| OPEN | IN_PROGRESS | 200 / 409 | 200 лише type_confirmed=true та is_complete=true; інакше 409 TYPE_NOT_CONFIRMED або REQUEST_INCOMPLETE. Резолюція заборонена 422. | AC-04-01, AC-04-02 |
+| OPEN | CLOSED | 200 / 422 / 409 | Потрібна resolution; відсутня/невалідна — 422. REJECTED потребує причини. COMPLETED потребує підтвердження, комплектності й узгоджених результатів; порушення — 409. | AC-07-01, AC-07-02, AC-07-03 |
+| IN_PROGRESS | OPEN | 409 | INVALID_TRANSITION; стан незмінний. | AC-04-04 |
+| IN_PROGRESS | IN_PROGRESS | 200 | Ідемпотентно без змін; резолюція заборонена 422. | AC-04-04 |
+| IN_PROGRESS | CLOSED | 200 / 422 / 409 | Валідна resolution: 200. Не задана/невалідна: 422. Невідповідний результат: 409 RESULT_MISMATCH. | AC-07-06 |
+| CLOSED | OPEN | 409 | INVALID_TRANSITION; повернення заборонене. | AC-04-03 |
+| CLOSED | IN_PROGRESS | 409 | INVALID_TRANSITION; повернення заборонене. | AC-04-09 |
+| CLOSED | CLOSED | 200 / 409 | Без resolution — 200 без змін; рівна збереженій resolution — 200; інша коректна — 409 RESOLUTION_CONFLICT. | AC-04-03, AC-07-05 |
 
 CLOSED: GET detail/list/comments дозволені (200); додавання коментаря дозволене (201); PATCH основних полів заборонений (409); зміна статусу на інший заборонена (409); повтор поточного CLOSED дозволений (200 без зміни). Резолюція та resolved_at незмінні. Помилка не вставляє резолюції й не змінює статусу.
 
@@ -302,9 +310,9 @@ CLOSED: GET detail/list/comments дозволені (200); додавання к
 | Невідоме/заборонене поле | {"status":"CLOSED"} або {"foo":1} | 422 VALIDATION_ERROR; жодних змін. |
 | Змішані дані | {"title":"Нова назва","assignee_id":8} | 422; title і assignee_id не змінюються. |
 
-Порядок виконання: перевірити JSON, дозволені поля, типи та скалярні межі; знайти звернення або 404; для CLOSED повернути 409 REQUEST_CLOSED; перевірити непорожність команди або 400; розпочати транзакцію та перечитати стан, повторно перевірити CLOSED і всі залежні від стану умови; побудувати кандидат із копії, застосувати нормалізацію, вкладений merge та очищення старого типу; перевірити сумісність типу/деталей, нерівність значень виправлення та інваріант IN_PROGRESS; записати всі зміни одним commit. При будь-якому порушенні rollback.
+Порядок виконання відповідає §6.1: перевірити синтаксис JSON, дозволені поля й типи значень; нормалізувати значення; перевірити межі, enum, формати та ID на нормалізованих значеннях (порушення — 422); знайти звернення або 404; для CLOSED повернути 409 REQUEST_CLOSED; перевірити непорожність команди або 400; розпочати транзакцію та перечитати стан, повторно перевірити CLOSED і всі залежні від стану умови; побудувати кандидат із копії та вже нормалізованих значень, виконати вкладений merge та очищення старого типу; перевірити сумісність типу/деталей, нерівність значень виправлення та інваріант IN_PROGRESS; записати всі зміни одним commit. При будь-якому порушенні rollback.
 
-request_type та type_confirmed_by повинні бути передані разом; одне без іншого — 422. Це перевіряється при валідації форми. Повтор підтвердження того самого типу тим самим співробітником не змінює type_confirmed_at; інший підтверджувач того самого типу в OPEN встановлює новий час. У IN_PROGRESS повтор однакової пари допустимий без змін, інший тип або підтверджувач — 409 TYPE_LOCKED.
+request_type та type_confirmed_by повинні бути передані разом; одне без іншого — 422. Це перевіряється при валідації форми. Повтор підтвердження того самого типу тим самим співробітником не змінює type_confirmed_at; інший підтверджувач того самого типу в OPEN встановлює новий час. У IN_PROGRESS повтор однакової пари допустимий без змін, інший тип або підтверджувач — 409 TYPE_LOCKED. student_id і full_name змінюються лише в OPEN як виправлення помилки введення; у IN_PROGRESS — 409 APPLICANT_LOCKED (D-11).
 
 В IN_PROGRESS обов’язкові дані можна виправляти лише зі збереженням комплектності. Очищення об’єкта або обов’язкового поля — 409 REQUEST_INCOMPLETE. В OPEN очищення дозволене. Коментар із даними не замінює PATCH: співробітник переносить уточнення в структуровані поля вручну.
 
@@ -320,9 +328,9 @@ request_type та type_confirmed_by повинні бути передані р�
 | 404 | REQUEST_NOT_FOUND | Позитивний валідний id не знайдено. | Без змін. |
 | 409 | REQUEST_CLOSED / INVALID_TRANSITION | Основний PATCH CLOSED / заборонена стрілка станів. | Без змін. |
 | 409 | TYPE_NOT_CONFIRMED / REQUEST_INCOMPLETE | Початок роботи чи COMPLETED без підтвердження/комплектності, або PATCH порушує інваріант IN_PROGRESS. | Без змін. |
-| 409 | TYPE_LOCKED / RESULT_MISMATCH / RESOLUTION_CONFLICT | Зміна підтвердження в обробці; результат не відповідає послузі; спроба переписати резолюцію. | Без змін. |
+| 409 | TYPE_LOCKED / APPLICANT_LOCKED / RESULT_MISMATCH / RESOLUTION_CONFLICT | Зміна підтвердження або заявника в обробці; результат не відповідає послузі; спроба переписати резолюцію. | Без змін. |
 | 422 | VALIDATION_ERROR | Поганий JSON, тип, enum, довжина, дата, ID співробітника, null, unknown field, confirmation pair, несумісні деталі, структура резолюції. | Без змін. |
 
 ## 10. Перевірюваність
 
-Поведінкові критерії заплановано у [traceability.csv](traceability.csv). Метрика Traceability Coverage = (7 / 7) × 100% = 100%. Вона означає наявність ланцюжка для кожного FR-01..FR-07, а не виконані тести чи покриття коду. FR-08 виключено зі знаменника як Future. Результат повторної перевірки комплекту наведено в [lab-01.md](lab-01.md), розділ 5.
+Поведінкові критерії заплановано у [traceability.csv](traceability.csv). Метрика Traceability Coverage = (7 / 7) × 100% = 100%. Вона означає наявність ланцюжка для кожного FR-01..FR-07, а не виконані тести чи покриття коду. FR-08 виключено зі знаменника як Future. Відповіді API перевіряються не лише JSON-схемами: додаткові перевірки, які схема не виражає, та відповідні тести перелічено в [api-contract.md](api-contract.md), розділ 6. Результат повторної перевірки комплекту наведено в [lab-01.md](lab-01.md), розділ 5.

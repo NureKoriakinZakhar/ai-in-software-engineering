@@ -2159,7 +2159,7 @@ NoBody — позначення відсутнього HTTP-тіла, а не JS
 }
 ```
 
-**409:** CLOSED; TYPE_LOCKED для зміни типу/автора IN_PROGRESS; APPLICANT_LOCKED для зміни student_id/full_name поза OPEN; REQUEST_INCOMPLETE для втрати реквізитів у IN_PROGRESS.
+**409:** CLOSED; TYPE_LOCKED для зміни типу/автора IN_PROGRESS; APPLICANT_LOCKED для зміни student_id/full_name у IN_PROGRESS; REQUEST_INCOMPLETE для втрати реквізитів у IN_PROGRESS.
 
 ```json
 {

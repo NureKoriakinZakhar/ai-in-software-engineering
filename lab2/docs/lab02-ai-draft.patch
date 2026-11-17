@@ -1,0 +1,425 @@
+--- a/app/service.py
++++ b/app/service.py
+@@ -17,8 +17,17 @@
+     details_for_type,
+     format_ts,
+     full_details,
++    parse_ts,
+ )
+-from app.schemas import DETAILS_NAMES, CommentCreate, RequestCreate, RequestPatch
++from app.schemas import (
++    DETAILS_NAMES,
++    CertificateResult,
++    CommentCreate,
++    CorrectionResult,
++    RequestCreate,
++    RequestPatch,
++    ResolutionInput,
++)
+ 
+ OPEN, IN_PROGRESS, CLOSED = "OPEN", "IN_PROGRESS", "CLOSED"
+ 
+@@ -50,6 +59,22 @@
+     return ApiError(409, "REQUEST_INCOMPLETE", message, details)
+ 
+ 
++def user_resolution(resolution: ResolutionInput) -> dict:
++    """Нормалізовані користувацькі поля резолюції для збереження й порівняння (§4)."""
++    result = resolution.result_details
++    if isinstance(result, CertificateResult):
++        result = {"certificate_number": result.certificate_number,
++                  "issued_on": result.issued_on.isoformat()}
++    elif isinstance(result, CorrectionResult):
++        result = {"target_field": result.target_field,
++                  "previous_value": result.previous_value,
++                  "corrected_value": result.corrected_value,
++                  "corrected_at": result.corrected_at.isoformat().replace("+00:00", "Z")}
++    return {"resolution_code": resolution.resolution_code, "result_details": result,
++            "rejection_reason": resolution.rejection_reason,
++            "resolved_by": resolution.resolved_by}
++
++
+ def with_completeness(request: dict) -> dict:
+     return {**request, "completeness": completeness(request)}
+ 
+@@ -234,7 +259,102 @@
+         repository.update_request(conn, request_id, changes)
+         if any(candidate[n] != current[n] for n in DETAILS_NAMES):
+             repository.save_details(conn, request_id, candidate)
++
++    # --- Зріз C: статуси й закриття (§7, D-05, D-06, D-12).
++
++    def change_status(self, request_id: int, status: str,
++                      resolution: ResolutionInput | None) -> dict:
++        conn = self._connect()
++        try:
++            with transaction(conn):
++                current = self._load(conn, request_id)
++                source = current["status"]
++                if status == CLOSED:
++                    self._close(conn, current, resolution, required=source != CLOSED)
++                elif source == CLOSED or (source == IN_PROGRESS and status == OPEN):
++                    raise ApiError(409, "INVALID_TRANSITION",
++                                   f"Перехід {source} → {status} заборонений.", [
++                                       {"field": "request.status",
++                                        "reason": "Зворотний перехід не дозволений."}
++                                   ])
++                elif source == OPEN and status == IN_PROGRESS:
++                    self._check_ready(current, "Для початку обробки бракує даних.")
++                    repository.update_request(conn, request_id, {"status": IN_PROGRESS})
++            return with_completeness(self._load(conn, request_id))
++        finally:
++            conn.close()
++
++    def close_request(self, request_id: int, resolution: ResolutionInput) -> dict:
++        """POST close: той самий use case, що й PATCH status=CLOSED."""
++        return self.change_status(request_id, CLOSED, resolution)
++
++    @staticmethod
++    def _check_ready(request: dict, message: str) -> None:
++        state = completeness(request)
++        if not state["type_confirmed"]:
++            raise ApiError(409, "TYPE_NOT_CONFIRMED", "Тип звернення не підтверджено.", [{
++                "field": "request.request_type",
++                "reason": "Передайте request_type і type_confirmed_by через PATCH звернення.",
++            }])
++        if not state["is_complete"]:
++            raise incomplete(state["missing_fields"], message)
+ 
++    def _close(self, conn, current: dict, resolution: ResolutionInput | None,
++               required: bool) -> None:
++        if resolution is None:
++            if required:
++                raise validation("body.resolution", "Для закриття потрібна resolution.")
++            return  # повтор CLOSED без резолюції — 200 без змін
++        stored = current["resolution"]
++        resolved_at = stored["resolved_at"] if stored else self._now()
++        if resolution.resolution_code == "COMPLETED" and stored is None:
++            self._check_ready(current, "Для фіксації виконання бракує даних.")
++            self._check_result_kind(current, resolution.result_details)
++        self._check_time_bounds(current, resolution.result_details, resolved_at)
++        candidate = {**user_resolution(resolution), "resolved_at": resolved_at}
++        if stored is not None:
++            if candidate != stored:
++                raise ApiError(409, "RESOLUTION_CONFLICT", "Резолюцію вже зафіксовано.", [{
++                    "field": "body.resolution",
++                    "reason": "Збережену резолюцію не можна змінити.",
++                }])
++            return
++        repository.insert_resolution(conn, current["id"], candidate)
++        repository.update_request(conn, current["id"], {"status": CLOSED})
++
++    @staticmethod
++    def _check_result_kind(current: dict, result) -> None:
++        expected = (CertificateResult if current["request_type"] == "ENROLLMENT_CERTIFICATE"
++                    else CorrectionResult)
++        if not isinstance(result, expected):
++            raise ApiError(409, "RESULT_MISMATCH", "Результат не відповідає послузі.", [{
++                "field": "body.resolution.result_details",
++                "reason": "Різновид результату не відповідає підтвердженому типу.",
++            }])
++        if expected is CorrectionResult:
++            details = current["correction_details"]
++            pairs = (("target_field", "target_field"), ("previous_value", "current_value"),
++                     ("corrected_value", "proposed_value"))
++            wrong = [{"field": f"body.resolution.result_details.{name}",
++                      "reason": f"Має дорівнювати correction_details.{source}."}
++                     for name, source in pairs if getattr(result, name) != details[source]]
++            if wrong:
++                raise ApiError(409, "RESULT_MISMATCH", "Результат не відповідає реквізитам.",
++                               wrong)
++
++    @staticmethod
++    def _check_time_bounds(current: dict, result, resolved_at: str) -> None:
++        """D-12: результат не датується до створення чи після закриття."""
++        created, closed = parse_ts(current["created_at"]), parse_ts(resolved_at)
++        if isinstance(result, CertificateResult):
++            if not created.date() <= result.issued_on <= closed.date():
++                raise validation("body.resolution.result_details.issued_on",
++                                 "Дата має бути між датою створення та датою закриття (UTC).")
++        elif isinstance(result, CorrectionResult):
++            if not created <= result.corrected_at <= closed:
++                raise validation("body.resolution.result_details.corrected_at",
++                                 "Час має бути між created_at і resolved_at.")
++
+     # --- Зріз D: коментарі (FR-06).
+ 
+     def add_comment(self, request_id: int, data: CommentCreate) -> dict:
+--- a/app/api.py
++++ b/app/api.py
+@@ -100,6 +100,19 @@
+     return service.patch_request(id, body)
+ 
+ 
++@router.patch("/requests/{id}/status", response_model=RequestOut,
++              dependencies=[query_guard()])
++def change_status(id: RequestId, body: StatusPatch, service: Service) -> dict:
++    body.check_form()
++    return service.change_status(id, body.status, body.resolution)
++
++
++@router.post("/requests/{id}/close", response_model=RequestOut, dependencies=[query_guard()])
++def close_request(id: RequestId, body: CloseInput, service: Service) -> dict:
++    body.check_form()
++    return service.close_request(id, body.resolution)
++
++
+ @router.post("/requests/{id}/comments", status_code=201, response_model=CommentOut,
+              dependencies=[query_guard()])
+ def add_comment(id: RequestId, body: CommentCreate, service: Service) -> dict:
+--- /dev/null
++++ b/tests/test_status_close.py
+@@ -0,0 +1,253 @@
++"""Зріз C: матриця 3×3 і закриття (FR-04, FR-07; T09, T10)."""
++
++import pytest
++
++from tests.conftest import (
++    CERT_FULL,
++    certificate_ready,
++    correction_ready,
++    create,
++    error_of,
++    fields_of,
++)
++
++CERT_DONE = {
++    "resolution_code": "COMPLETED",
++    "result_details": {"certificate_number": "CERT-2026-001", "issued_on": "2026-10-10"},
++    "resolved_by": 1,
++}
++REJECT = {
++    "resolution_code": "REJECTED",
++    "rejection_reason": "Заявлена послуга не надається.",
++    "resolved_by": 2,
++}
++
++
++def corr_done(**override) -> dict:
++    result = {
++        "target_field": "full_name",
++        "previous_value": "A",
++        "corrected_value": "B",
++        "corrected_at": "2026-10-10T10:00:00Z",
++    }
++    result.update(override)
++    return {"resolution_code": "COMPLETED", "result_details": result, "resolved_by": 1}
++
++
++def status(client, request_id, value, **extra):
++    return client.patch(f"/requests/{request_id}/status", json={"status": value, **extra})
++
++
++def close(client, request_id, resolution):
++    return client.post(f"/requests/{request_id}/close", json={"resolution": resolution})
++
++
++def closed_request(client) -> dict:
++    request = certificate_ready(client)
++    assert close(client, request["id"], CERT_DONE).status_code == 200
++    return client.get(f"/requests/{request['id']}").json()
++
++
++# T09 — дозволені переходи й повтор поточного стану.
++
++def test_confirm_start(client):
++    """AC-04-01."""
++    request = create(client, certificate_details=CERT_FULL)
++    confirmed = client.patch(f"/requests/{request['id']}", json={
++        "request_type": "ENROLLMENT_CERTIFICATE", "type_confirmed_by": 1})
++    assert confirmed.status_code == 200
++    assert confirmed.json()["completeness"]["type_confirmed"] is True
++    started = status(client, request["id"], "IN_PROGRESS")
++    assert started.status_code == 200
++    assert started.json()["status"] == "IN_PROGRESS"
++
++
++def test_start_incomplete(client):
++    """AC-04-02: без підтвердження й без purpose — 409, статус OPEN."""
++    request = create(client)
++    response = status(client, request["id"], "IN_PROGRESS")
++    assert response.status_code == 409
++    assert error_of(response)["code"] == "TYPE_NOT_CONFIRMED"
++
++    partial = create(client, certificate_details={"language": "uk", "delivery_method": "digital"})
++    client.patch(f"/requests/{partial['id']}", json={
++        "request_type": "ENROLLMENT_CERTIFICATE", "type_confirmed_by": 1})
++    response = status(client, partial["id"], "IN_PROGRESS")
++    assert response.status_code == 409
++    assert error_of(response)["code"] == "REQUEST_INCOMPLETE"
++    assert fields_of(response) == ["request.certificate_details.purpose"]
++    for item in (request, partial):
++        assert client.get(f"/requests/{item['id']}").json()["status"] == "OPEN"
++
++
++def test_progress_noop_backward(client):
++    """AC-04-04."""
++    request = certificate_ready(client)
++    started = status(client, request["id"], "IN_PROGRESS").json()
++    again = status(client, request["id"], "IN_PROGRESS")
++    assert again.status_code == 200
++    assert again.json() == started
++    back = status(client, request["id"], "OPEN")
++    assert back.status_code == 409
++    assert error_of(back)["code"] == "INVALID_TRANSITION"
++    assert client.get(f"/requests/{request['id']}").json() == started
++
++
++def test_transition_matrix_remaining(client):
++    """AC-04-09: OPEN → OPEN без змін; CLOSED → IN_PROGRESS — 409."""
++    request = create(client)
++    same = status(client, request["id"], "OPEN")
++    assert same.status_code == 200
++    assert same.json() == request
++    closed = closed_request(client)
++    response = status(client, closed["id"], "IN_PROGRESS")
++    assert response.status_code == 409
++    assert error_of(response)["code"] == "INVALID_TRANSITION"
++    assert client.get(f"/requests/{closed['id']}").json() == closed
++
++
++@pytest.mark.parametrize("target", ["OPEN", "IN_PROGRESS"])
++def test_resolution_only_for_closed(client, target):
++    """StatusPatch: resolution разом зі status=OPEN/IN_PROGRESS — 422."""
++    request = certificate_ready(client)
++    response = status(client, request["id"], target, resolution=REJECT)
++    assert response.status_code == 422
++    assert fields_of(response) == ["body.resolution"]
++
++
++# T10 — CLOSED є фінальним.
++
++def test_closed_cannot_reopen(client):
++    """AC-04-03."""
++    closed = closed_request(client)
++    response = status(client, closed["id"], "OPEN")
++    assert response.status_code == 409
++    assert error_of(response)["code"] == "INVALID_TRANSITION"
++    repeat = status(client, closed["id"], "CLOSED")
++    assert repeat.status_code == 200
++    assert repeat.json() == closed
++    assert client.get(f"/requests/{closed['id']}").json() == closed
++
++
++# Закриття (FR-07).
++
++def test_close_completed(client):
++    """AC-07-01."""
++    request = certificate_ready(client)
++    response = close(client, request["id"], CERT_DONE)
++    assert response.status_code == 200
++    body = response.json()
++    assert body["status"] == "CLOSED"
++    assert body["resolution"]["result_details"] == CERT_DONE["result_details"]
++    assert body["resolution"]["rejection_reason"] is None
++    assert body["resolution"]["resolved_at"].endswith("Z")
++
++
++def test_close_rejected(client):
++    """AC-07-02: відмова без підтвердженого типу."""
++    request = create(client)
++    response = close(client, request["id"], REJECT)
++    assert response.status_code == 200
++    body = response.json()
++    assert body["status"] == "CLOSED"
++    assert body["resolution"]["result_details"] is None
++    assert body["completeness"]["is_complete"] is False
++
++
++@pytest.mark.parametrize("resolution, field", [
++    ({"resolution_code": "COMPLETED", "resolved_by": 1}, "body.resolution.result_details"),
++    ({**REJECT, "rejection_reason": "123456789"}, "body.resolution.rejection_reason"),
++    ({**REJECT, "rejection_reason": "  Коротко  "}, "body.resolution.rejection_reason"),
++    ({**CERT_DONE, "rejection_reason": "Причина відмови тут"},
++     "body.resolution.rejection_reason"),
++    ({**CERT_DONE, "resolved_by": 3}, "body.resolution.resolved_by"),
++    ({**CERT_DONE, "resolved_at": "2026-10-10T10:00:00Z"}, "body.resolution.resolved_at"),
++])
++def test_resolution_invalid(client, resolution, field):
++    """AC-07-03 і форма ResolutionInput: 422, звернення не змінене."""
++    request = certificate_ready(client)
++    response = close(client, request["id"], resolution)
++    assert response.status_code == 422
++    assert field in fields_of(response)
++    assert client.get(f"/requests/{request['id']}").json() == request
++
++
++def test_close_requires_resolution(client):
++    """Фактичний перехід у CLOSED без resolution — 422; POST close без неї — 422."""
++    request = certificate_ready(client)
++    assert status(client, request["id"], "CLOSED").status_code == 422
++    assert client.post(f"/requests/{request['id']}/close", json={}).status_code == 422
++    assert client.get(f"/requests/{request['id']}").json() == request
++
++
++def test_completed_requires_confirmation(client):
++    """D-05: COMPLETED без підтвердження — 409 TYPE_NOT_CONFIRMED."""
++    request = create(client, certificate_details=CERT_FULL)
++    response = close(client, request["id"], CERT_DONE)
++    assert response.status_code == 409
++    assert error_of(response)["code"] == "TYPE_NOT_CONFIRMED"
++
++
++def test_close_idempotence(client):
++    """AC-07-05: рівна резолюція — 200 без зміни resolved_at; інша — 409."""
++    closed = closed_request(client)
++    repeat = close(client, closed["id"], {**CERT_DONE, "rejection_reason": None})
++    assert repeat.status_code == 200
++    assert repeat.json()["resolution"]["resolved_at"] == closed["resolution"]["resolved_at"]
++    other = {**CERT_DONE, "result_details": {"certificate_number": "CERT-2",
++                                             "issued_on": "2026-10-10"}}
++    for response in (close(client, closed["id"], other),
++                     status(client, closed["id"], "CLOSED", resolution=other)):
++        assert response.status_code == 409
++        assert error_of(response)["code"] == "RESOLUTION_CONFLICT"
++    assert client.get(f"/requests/{closed['id']}").json() == closed
++
++
++def test_close_correction_match(client):
++    """AC-07-06: результат виправлення відповідає реквізитам; інакше 409."""
++    request = correction_ready(client)
++    status(client, request["id"], "IN_PROGRESS")
++    wrong = status(client, request["id"], "CLOSED", resolution=corr_done(corrected_value="C"))
++    assert wrong.status_code == 409
++    assert error_of(wrong)["code"] == "RESULT_MISMATCH"
++    assert fields_of(wrong) == ["body.resolution.result_details.corrected_value"]
++    kind = status(client, request["id"], "CLOSED", resolution=CERT_DONE)
++    assert error_of(kind)["code"] == "RESULT_MISMATCH"
++    assert client.get(f"/requests/{request['id']}").json()["status"] == "IN_PROGRESS"
++    ok = status(client, request["id"], "CLOSED", resolution=corr_done())
++    assert ok.status_code == 200
++    assert ok.json()["status"] == "CLOSED"
++
++
++def test_result_time_bounds(client):
++    """AC-07-07, D-12: майбутні issued_on / corrected_at — 422 без змін."""
++    correction = correction_ready(client)
++    status(client, correction["id"], "IN_PROGRESS")
++    future = status(client, correction["id"], "CLOSED",
++                    resolution=corr_done(corrected_at="2026-10-11T00:00:00Z"))
++    assert future.status_code == 422
++    assert fields_of(future) == ["body.resolution.result_details.corrected_at"]
++    before = status(client, correction["id"], "CLOSED",
++                    resolution=corr_done(corrected_at="2026-10-09T23:59:59Z"))
++    assert before.status_code == 422
++    stored = client.get(f"/requests/{correction['id']}").json()
++    assert stored["status"] == "IN_PROGRESS" and stored["resolution"] is None
++
++    certificate = certificate_ready(client)
++    status(client, certificate["id"], "IN_PROGRESS")
++    late = {**CERT_DONE, "result_details": {"certificate_number": "C-1",
++                                            "issued_on": "2026-10-11"}}
++    response = close(client, certificate["id"], late)
++    assert response.status_code == 422
++    assert fields_of(response) == ["body.resolution.result_details.issued_on"]
++    assert client.get(f"/requests/{certificate['id']}").json()["status"] == "IN_PROGRESS"
++
++
++def test_corrected_at_timezone_normalized(client):
++    """corrected_at з часовим поясом нормалізується до UTC (§6.9)."""
++    request = correction_ready(client)
++    response = close(client, request["id"], corr_done(corrected_at="2026-10-10T13:00:00+03:00"))
++    assert response.status_code == 200
++    assert response.json()["resolution"]["result_details"]["corrected_at"] == (
++        "2026-10-10T10:00:00Z"
++    )

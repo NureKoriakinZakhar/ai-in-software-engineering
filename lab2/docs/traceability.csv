@@ -1,0 +1,41 @@
+FR_ID,User_Story_ID,Acceptance_Criteria_ID,Slice,Component_API_Route,Test,Status
+FR-01,US-01,AC-01-01,A,POST /requests,tests/test_requests.py::test_create_defaults,PASSED_LR2
+FR-01,US-01,AC-01-02,A,POST /requests,tests/test_requests.py::test_create_title_boundaries,PASSED_LR2
+FR-01,US-01,AC-01-03,A,POST /requests,tests/test_requests.py::test_create_invalid_fields,PASSED_LR2
+FR-02,US-02,AC-02-01,E,GET /requests,tests/test_filters.py::test_filters_and,PASSED_LR2
+FR-02,US-02,AC-02-02,E,GET /requests,tests/test_filters.py::test_filter_empty,PASSED_LR2
+FR-02,US-02,AC-02-03,A,GET /requests/{id},tests/test_requests.py::test_read_missing,PASSED_LR2
+FR-02,US-02,AC-02-04,E,GET /requests,tests/test_filters.py::test_invalid_filter,PASSED_LR2
+FR-02,US-02,AC-02-05,A,GET /requests,tests/test_requests.py::test_request_order,PASSED_LR2
+FR-03,US-03,AC-03-01,B,PATCH /requests/{id},tests/test_patch.py::test_patch_merge,PASSED_LR2
+FR-03,US-03,AC-03-02,B,PATCH /requests/{id},tests/test_patch.py::test_patch_null_nonnullable,PASSED_LR2
+FR-03,US-03,AC-03-03,B,PATCH /requests/{id},tests/test_patch.py::test_patch_empty_unknown,PASSED_LR2
+FR-03,US-03,AC-03-04,B,PATCH /requests/{id},tests/test_patch.py::test_patch_atomic,PASSED_LR2
+FR-03,US-03,AC-03-05,B,PATCH /requests/{id},tests/test_patch.py::test_patch_closed,PASSED_LR2
+FR-03,US-03,AC-03-06,B,PATCH /requests/{id},tests/test_patch.py::test_progress_completeness_invariant,PASSED_LR2
+FR-03,US-03,AC-03-07,B,PATCH /requests/{id},tests/test_patch.py::test_applicant_edit_open_only,PASSED_LR2
+FR-03,US-03,AC-03-08,B,PATCH /requests/{id},tests/test_patch.py::test_patch_merge_correction_conflict,PASSED_LR2
+FR-04,US-04,AC-04-01,C,PATCH /requests/{id}; PATCH /requests/{id}/status,tests/test_status_close.py::test_confirm_start,PASSED_LR2
+FR-04,US-04,AC-04-02,C,PATCH /requests/{id}/status,tests/test_status_close.py::test_start_incomplete,PASSED_LR2
+FR-04,US-04,AC-04-03,C,PATCH /requests/{id}/status,tests/test_status_close.py::test_closed_cannot_reopen,PASSED_LR2
+FR-04,US-04,AC-04-04,C,PATCH /requests/{id}/status,tests/test_status_close.py::test_progress_noop_backward,PASSED_LR2
+FR-04,US-04,AC-04-05,B,PATCH /requests/{id},tests/test_patch.py::test_confirmation_pair,PASSED_LR2
+FR-04,US-04,AC-04-06,B,PATCH /requests/{id},tests/test_patch.py::test_change_type_clears_old,PASSED_LR2
+FR-04,US-04,AC-04-07,B,PATCH /requests/{id},tests/test_patch.py::test_change_type_atomic,PASSED_LR2
+FR-04,US-04,AC-04-08,B,PATCH /requests/{id},tests/test_patch.py::test_confirmation_repeat,PASSED_LR2
+FR-04,US-04,AC-04-09,C,PATCH /requests/{id}/status,tests/test_status_close.py::test_transition_matrix_remaining,PASSED_LR2
+FR-05,US-05,AC-05-01,B,PATCH /requests/{id},tests/test_patch.py::test_assign_known,PASSED_LR2
+FR-05,US-05,AC-05-02,B,PATCH /requests/{id},tests/test_patch.py::test_unassign,PASSED_LR2
+FR-05,US-05,AC-05-03,B,PATCH /requests/{id},tests/test_patch.py::test_assign_invalid,PASSED_LR2
+FR-06,US-06,AC-06-01,D,POST /requests/{id}/comments; GET /requests/{id}/comments,tests/test_comments.py::test_comment_closed,PASSED_LR2
+FR-06,US-06,AC-06-02,D,POST /requests/{id}/comments,tests/test_comments.py::test_comment_boundaries,PASSED_LR2
+FR-06,US-06,AC-06-03,D,POST /requests/{id}/comments; GET /requests/{id}/comments,tests/test_comments.py::test_comment_missing,PASSED_LR2
+FR-06,US-06,AC-06-04,D,POST /requests/{id}/comments,tests/test_comments.py::test_comment_author,PASSED_LR2
+FR-06,US-06,AC-06-05,D,GET /requests/{id}/comments,tests/test_comments.py::test_comment_order,PASSED_LR2
+FR-07,US-07,AC-07-01,C,POST /requests/{id}/close,tests/test_status_close.py::test_close_completed,PASSED_LR2
+FR-07,US-07,AC-07-02,C,POST /requests/{id}/close,tests/test_status_close.py::test_close_rejected,PASSED_LR2
+FR-07,US-07,AC-07-03,C,POST /requests/{id}/close,tests/test_status_close.py::test_resolution_invalid,PASSED_LR2
+FR-07,US-07,AC-07-04,A,GET /requests/{id}; GET /requests/{id}/comments; SQLite Storage,tests/test_persistence.py::test_persistence_restart,PASSED_LR2
+FR-07,US-07,AC-07-05,C,POST /requests/{id}/close,tests/test_status_close.py::test_close_idempotence,PASSED_LR2
+FR-07,US-07,AC-07-06,C,PATCH /requests/{id}/status,tests/test_status_close.py::test_close_correction_match,PASSED_LR2
+FR-07,US-07,AC-07-07,C,PATCH /requests/{id}/status; POST /requests/{id}/close,tests/test_status_close.py::test_result_time_bounds,PASSED_LR2

@@ -8,13 +8,13 @@
 - Код (app/): schemas.py, models.py, service.py, repository.py, database.py, api.py, main.py
 - Тести (tests/): conftest.py, test_health_staff.py, test_requests.py, test_persistence.py
 - Читати: docs/api-contract.md — вступ, §1 (RequestCreate, Request, Completeness,
-  StaffList, Health, Error), §2.1–2.3, §2.5; docs/requirements.md — §6.1–6.4, §6.10–6.12, §9
+  StaffList, Health, Error), §2.1–2.5; docs/requirements.md — §6.1–6.4, §6.10–6.12, §9
 - Критерії: FR-01, FR-02 (деталізація, порядок), FR-07 (збереження) —
   AC-01-01, AC-01-02, AC-01-03, AC-02-03, AC-02-05, AC-07-04
 - Сценарії: T01, T02, T03, T13
 
 ## B. Редагування й підтвердження типу
-- Код (app/): schemas.py, service.py, api.py
+- Код (app/): schemas.py, service.py, repository.py, api.py
 - Тести (tests/): test_patch.py
 - Читати: docs/api-contract.md — §1 RequestPatch, §2.6, §3 «Частково невалідний PATCH»;
   docs/requirements.md — D-01..D-04, D-11, §6.1, §6.11, §8
@@ -30,9 +30,12 @@
 - Критерії: FR-04 (переходи), FR-07 (результат) — AC-04-01..AC-04-04, AC-04-09,
   AC-07-01..AC-07-03, AC-07-05..AC-07-07
 - Сценарії: T09, T10
+- Час у тестах: FakeClock із tests/conftest.py (START 2026-10-10T10:00:00Z, +1 с
+  на кожен виклик). issued_on і corrected_at задавай не пізніше START, інакше D-12
+  правильно поверне 422.
 
 ## D. Коментарі
-- Код (app/): schemas.py, service.py, api.py
+- Код (app/): schemas.py, service.py, repository.py, api.py
 - Тести (tests/): test_comments.py
 - Читати: docs/api-contract.md — §1 CommentCreate, Comment, §2.9, §2.10;
   docs/requirements.md — §6.5, FR-06

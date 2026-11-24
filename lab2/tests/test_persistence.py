@@ -8,8 +8,12 @@ def test_persistence_restart(db_path, clock):
     first = TestClient(create_app(db_path, clock))
     request = create(first, certificate_details=CERT_FULL)
     confirm(first, request["id"], "ENROLLMENT_CERTIFICATE")
-    first.post(f"/requests/{request['id']}/comments", json={"author_id": 2, "text": "Готово"})
-    first.post(
+    created = first.post(
+        f"/requests/{request['id']}/comments", json={"author_id": 2, "text": "Готово"}
+    )
+    assert created.status_code == 201, created.text
+    comment = created.json()
+    closed = first.post(
         f"/requests/{request['id']}/close",
         json={
             "resolution": {
@@ -19,13 +23,17 @@ def test_persistence_restart(db_path, clock):
             }
         },
     )
+    assert closed.status_code == 200, closed.text
     detail = first.get(f"/requests/{request['id']}").json()
     comments = first.get(f"/requests/{request['id']}/comments").json()
     assert detail["status"] == "CLOSED"
+    assert comments == [comment]
 
     second = TestClient(create_app(db_path, FakeClock()))
     assert second.get(f"/requests/{request['id']}").json() == detail
-    assert second.get(f"/requests/{request['id']}/comments").json() == comments
+    restored = second.get(f"/requests/{request['id']}/comments").json()
+    assert restored == comments
+    assert [(c["id"], c["text"]) for c in restored] == [(comment["id"], "Готово")]
     assert second.get("/staff").json() == [
         {"id": 1, "name": "Agent A"},
         {"id": 2, "name": "Agent B"},

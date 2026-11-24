@@ -3,7 +3,7 @@ import copy
 import pytest
 
 from app.service import matches_request_type, matches_status, matches_urgency
-from tests.conftest import CERT_FULL, confirm, create, fields_of, reject
+from tests.conftest import CERT_FULL, CORR_FULL, confirm, create, fields_of, reject
 
 PREDICATES = [
     (matches_status, "status", "OPEN", "CLOSED"),
@@ -71,13 +71,20 @@ def test_filter_urgency(client, four):
 
 
 def test_filters_and(client, four):
-    assert ids(client, "status=OPEN&urgency=high") == [four["a"]]
+    # e: той самий OPEN/high, що й a, але з іншим підтвердженим типом, —
+    # лише request_type відрізняє a від e, тож третій фільтр має реально відсікати запис.
+    e = create(client, title="E open high", urgency="high", correction_details=CORR_FULL)
+    confirm(client, e["id"], "STUDENT_DATA_CORRECTION")
+    assert ids(client, "status=OPEN&urgency=high") == [four["a"], e["id"]]
     assert ids(client, "status=CLOSED&urgency=low") == [four["d"]]
     assert ids(client, "status=OPEN&urgency=high&request_type=ENROLLMENT_CERTIFICATE") == [
         four["a"]
     ]
-    assert ids(client, "request_type=STUDENT_DATA_CORRECTION") == []
-    assert ids(client, "") == [four["a"], four["b"], four["c"], four["d"]]
+    assert ids(client, "status=OPEN&urgency=high&request_type=STUDENT_DATA_CORRECTION") == [
+        e["id"]
+    ]
+    assert ids(client, "status=CLOSED&urgency=high&request_type=ENROLLMENT_CERTIFICATE") == []
+    assert ids(client, "") == [four["a"], four["b"], four["c"], four["d"], e["id"]]
 
 
 @pytest.mark.parametrize(
